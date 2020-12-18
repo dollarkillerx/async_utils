@@ -48,6 +48,7 @@ loop:
 			go func(fn PoolFunc) {
 				defer func() {
 					if err := recover(); err != nil {
+						PrintStack()
 						fmt.Println("Recover Err: ", err)
 					}
 				}() // 我怕你们乱写逻辑 把系统弄炸了
