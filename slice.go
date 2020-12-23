@@ -28,4 +28,3 @@ func (a *AsyncSlice) Get() []interface{} {
 
 	return a.slice
 }
-

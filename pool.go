@@ -115,4 +115,3 @@ loop:
 	s.wg.Wait()
 	s.ove <- true
 }
-

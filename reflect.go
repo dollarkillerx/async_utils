@@ -44,4 +44,3 @@ func sliceToSet(field []string) map[string]bool {
 
 	return output
 }
-

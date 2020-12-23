@@ -14,4 +14,3 @@ func Combinations(str []string, sep string) string {
 	}
 	return build.String()
 }
-
