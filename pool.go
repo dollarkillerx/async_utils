@@ -7,15 +7,15 @@ import (
 
 type PoolFunc func()
 
-type easyPool struct {
+type EasyPool struct {
 	limit chan struct{}
 	pool  chan PoolFunc
 	close PoolFunc
 }
 
-// 方法池
-func NewPoolFunc(size int, close PoolFunc) *easyPool {
-	pool := &easyPool{
+// NewPoolFunc 方法池
+func NewPoolFunc(size int, close PoolFunc) *EasyPool {
+	pool := &EasyPool{
 		limit: make(chan struct{}, size),
 		pool:  make(chan PoolFunc, size),
 		close: close,
@@ -24,17 +24,17 @@ func NewPoolFunc(size int, close PoolFunc) *easyPool {
 	return pool
 }
 
-//  下发任务
-func (e *easyPool) Send(fn PoolFunc) {
+// Send 下发任务
+func (e *EasyPool) Send(fn PoolFunc) {
 	e.pool <- fn
 }
 
-// 下发完毕信号  (任务下发完毕时调用)
-func (e *easyPool) Over() {
+// Over 下发完毕信号  (任务下发完毕时调用)
+func (e *EasyPool) Over() {
 	close(e.pool)
 }
 
-func (e *easyPool) core() {
+func (e *EasyPool) core() {
 	wg := sync.WaitGroup{}
 loop:
 	for {
