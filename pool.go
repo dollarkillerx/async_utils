@@ -3,6 +3,8 @@ package async_utils
 import (
 	"fmt"
 	"sync"
+
+	"go.uber.org/atomic"
 )
 
 type PoolFunc func()
@@ -64,6 +66,94 @@ loop:
 
 	wg.Wait()
 	e.close()
+}
+
+type SinglePoolFunc func() error
+
+// SinglePool 可停止的pool
+type SinglePool struct {
+	pool      chan SinglePoolFunc
+	close     PoolFunc
+	limit     chan struct{}
+	err       error
+	rmu       sync.Mutex
+	stop      atomic.Bool // stop  控制错误关闭
+	closeChan chan struct{}
+}
+
+func NewSinglePool(size int, close PoolFunc) *SinglePool {
+	pool := &SinglePool{
+		limit:     make(chan struct{}, size),
+		pool:      make(chan SinglePoolFunc, size),
+		close:     close,
+		closeChan: make(chan struct{}),
+	}
+	go pool.core()
+	return pool
+}
+
+// Send 下发任务
+func (s *SinglePool) Send(fn SinglePoolFunc) {
+	if !s.stop.Load() {
+		s.pool <- fn
+	}
+}
+
+// Over 下发完毕信号  (任务下发完毕时调用)
+func (s *SinglePool) Over() {
+	close(s.pool)
+}
+
+func (s *SinglePool) core() {
+	wg := sync.WaitGroup{}
+loop:
+	for {
+		select {
+		case fn, over := <-s.pool:
+			if !over {
+				break loop
+			}
+
+			if s.stop.Load() {
+				break loop
+			}
+
+			s.limit <- struct{}{}
+			wg.Add(1)
+			go func(fn SinglePoolFunc) {
+				defer func() {
+					if err := recover(); err != nil {
+						PrintStack()
+						fmt.Println("Recover Err: ", err)
+					} // 我怕你们乱写逻辑 把系统弄炸了
+
+					<-s.limit
+					wg.Done()
+				}()
+
+				err := fn()
+				if err != nil {
+					s.rmu.Lock()
+					s.err = err
+					s.stop.Store(true)
+					s.rmu.Unlock()
+				}
+			}(fn)
+		}
+	}
+
+	// 判断是否是因为错误而停止
+	if !s.stop.Load() {
+		wg.Wait()
+	}
+
+	close(s.closeChan)
+	s.close()
+}
+
+func (s *SinglePool) Error() error {
+	<-s.closeChan
+	return s.err
 }
 
 // Greedy Pool
